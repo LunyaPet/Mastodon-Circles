@@ -6,26 +6,44 @@
 async function apiRequestWithHeaders(url, options = null) {
     console.log(`Fetching :: ${url}`);
 
+    let originalOptions = structuredClone(options);
+
+    console.log(originalOptions);
+
     if (options && options.body) {
         options.body = JSON.stringify(options.body);
     }
 
-    return await fetch(url, options ?? {})
-        .then(response => {
-            if (response.ok) {
-                return response;
-            }
+    console.log(originalOptions);
 
-            throw new Error(`Error fetching ${url}: ${response.status} ${response.statusText}`);
-        })
-        .then(async response => ({ response: { headers: response.headers, body: await response.json(), error: undefined }}))
-        .catch(error => {
-            console.error(`Error fetching ${url}:`, error);
-            return {
-                response: undefined,
-                error: `Error fetching ${url}: ${error}`
-            };
-        });
+    const req = await fetch(url, options ?? {});
+
+    if (!req.ok) {
+        if (req.status === 429) {
+            console.log("trying again after 1 seconds...");
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            return await apiRequestWithHeaders(url, originalOptions);
+        }
+
+        throw new Error(`Error fetching ${url}: ${req.status} ${req.statusText}`);
+    }
+
+    try {
+        const body = await req.json();
+        return {
+            response: {
+                headers: req.headers,
+                body
+            },
+            error: undefined
+        };
+    }
+    catch (e) {
+        return {
+            response: undefined,
+            error: `Error fetching ${url}: ${e}`
+        }
+    }
 }
 
 /**
