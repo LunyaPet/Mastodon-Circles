@@ -761,27 +761,47 @@ class MisskeyApiClient extends ApiClient {
 
     async getNotes(user) {
         const url = `https://${this._instance}/api/users/notes`;
-        const { response, error } = await apiRequest(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: {
+
+        let notes = [];
+        let left = this._CNT_NOTES;
+        let loop = Math.floor(this._CNT_NOTES / 100) + 1;
+
+        while (left > 0 && loop > 0) {
+            console.log("left", left)
+            let reqBody = {
                 userId: user.id,
-                limit: this._CNT_NOTES,
+                limit: Math.min(left, 100),
                 withReplies: false,
                 withRenotes: false,
                 includeReplies: false,
                 includeMyRenotes: false
             }
-        });
 
-        if (error) {
-            return { error };
+            if (notes.length > 0) {
+                reqBody['sinceId'] = notes[notes.length - 1].id;
+            }
+
+            const { response, error } = await apiRequest(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: reqBody
+            });
+
+            console.log("fetched", response.length, "posts")
+
+            if (error) {
+                return { error };
+            }
+
+            response.forEach(x => notes.push(x));
+            left = left - response.length;
+            loop--;
         }
 
         return {
-            response: response.map(note => ({
+            response: notes.map(note => ({
                 id: note.id,
                 replies: note["repliesCount"],
                 renotes: note["renoteCount"],
